@@ -31,7 +31,7 @@ class Tracker(QMainWindow):
         self.show()
 
     def choose_layout(self):
-        filename, _ = QFileDialog.getOpenFileName(QFileDialog(), 'Choose Layout', ":/", "Layout Files(*.stl)")
+        filename, _ = QFileDialog.getOpenFileName(QFileDialog(), 'Choose Layout', ":/", "Layout Files(*.layout)")
         if filename:
             self.zone.open_layout(filename)
 
@@ -143,7 +143,7 @@ class LayoutEditor(QMainWindow):
         self.show()
 
     def choose_layout(self):
-        filename, _ = QFileDialog.getOpenFileName(self, 'Choose Layout', ":/", "Layout Files(*.stl)")
+        filename, _ = QFileDialog.getOpenFileName(self, 'Choose Layout', ":/", "Layout Files(*.layout)")
         if filename:
             self.zone.open_layout(filename)
 
