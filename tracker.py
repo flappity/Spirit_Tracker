@@ -1,7 +1,8 @@
 from PyQt5.QtWidgets import QApplication, QMainWindow, QAction, QLabel, QFrame, QWidget, QMenu, QFileDialog, QHBoxLayout
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLineEdit, QTableWidget, QTableWidgetItem, QAbstractItemView, QPushButton
+from PyQt5.QtWidgets import QDialogButtonBox, QGroupBox, QSizePolicy, QGridLayout, QFormLayout
 from PyQt5.QtGui import QIcon, QWindow, QPixmap, QDrag, QPainter, QColor, QPalette, QCursor
-from PyQt5.QtCore import QByteArray, QDataStream, QIODevice, QPoint, Qt, QMimeData, QAbstractItemModel
+from PyQt5.QtCore import QByteArray, QDataStream, QIODevice, QPoint, Qt, QMimeData, QDir
 import functools, json
 import sys
 
@@ -9,7 +10,6 @@ import sys
 class Tracker(QMainWindow):
     def __init__(self):
         super().__init__()
-
         menubar = self.menuBar()
         file_menu = menubar.addMenu('File')
 
@@ -49,13 +49,6 @@ class TrackerZone(QFrame):
 
         self.elements = []
         self.setGeometry(0, 20, 800, 600)
-
-        # Test element
-
-        # hammer = Tracker_Item(self, image_list=[['hammer', 'icons/hammer.png'], ['mirror', 'icons/mirror.png'],
-        #                                         ['chest', 'icons/chest0.png']], name='hammirror', x=50, y=50)
-        # self.elements.append(hammer.data)
-        # self.elements.append(hammer.data)
 
     def open_layout(self, filename):
         for element in self.elements:
@@ -228,17 +221,23 @@ class ElementProps(QDialog):
         super().__init__(parent)
 
         self.setContextMenuPolicy(Qt.NoContextMenu)
+        # The overarching layout for this window
         main_layout = QVBoxLayout()
+
+        # The upper half
         upper_layout = QVBoxLayout()
 
+        # Row containing Element Name: and the QLineEdit for it
         name_txt = QLabel('Element name')
         name_edit = QLineEdit()
         name_edit.setText(parent.name)
 
+        # Building the above row
         name_entry = QHBoxLayout()
         name_entry.addWidget(name_txt)
         name_entry.addWidget(name_edit)
 
+        # Elements for the row containing X, Y, Layer and QLineEdits
         x_txt = QLabel('X')
         x_edit = QLineEdit()
         x_edit.setText(str(parent.x))
@@ -251,6 +250,7 @@ class ElementProps(QDialog):
         layer_edit = QLineEdit()
         layer_edit.setText(str(parent.layer))
 
+        # Laying out x, y, and layer text/boxes
         xy_layer_row = QHBoxLayout()
         xy_layer_row.addWidget(x_txt)
         xy_layer_row.addWidget(x_edit)
@@ -259,9 +259,25 @@ class ElementProps(QDialog):
         xy_layer_row.addWidget(layer_txt)
         xy_layer_row.addWidget(layer_edit)
 
+        # Putting together the rows above
         upper_layout.addLayout(name_entry)
         upper_layout.addLayout(xy_layer_row)
 
+        # Creating the Add/Edit/Delete buttons...
+        add_image = QPushButton('Add', self)
+        edit_image = QPushButton('Edit Selected', self)
+        delete_image = QPushButton('Delete Selected', self)
+
+        # ..and laying them out together
+        add_edit_cancel = QHBoxLayout()
+        add_edit_cancel.addWidget(add_image)
+        add_edit_cancel.addWidget(edit_image)
+        add_edit_cancel.addWidget(delete_image)
+
+        # The layout for the bottom half of the window, including push buttons and table
+        lower_layout = QVBoxLayout()
+
+        # The table in the lower half of the image
         image_table = QTableWidget()
         image_table.setColumnCount(2)
         image_table.setRowCount(len(parent.images))
@@ -269,27 +285,135 @@ class ElementProps(QDialog):
         image_table.setHorizontalHeaderLabels(["Name", "Image File"])
         image_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         image_table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        image_table.setFrameShape(QFrame.WinPanel)
+        image_table.setFrameShadow(QFrame.Plain)
+        image_table.setAlternatingRowColors(True)
+        image_table.setShowGrid(False)
+        image_table.horizontalHeader().setStretchLastSection(True)
 
-        print(parent.images)
-        print(parent.images[0][0])
-        print(parent.images[0][1])
         for image in parent.images:
             idx = parent.images.index(image)
             image_table.setItem(0 + idx, 0, QTableWidgetItem(parent.images[idx][0]))
             image_table.setItem(0 + idx, 1, QTableWidgetItem(parent.images[idx][1]))
-        edit_image = QPushButton('Edit', self)
+
+        # Putting together the list view + its buttons
+        lower_layout.addLayout(add_edit_cancel)
+        lower_layout.addWidget(image_table)
+
+        # Building OK/Cancel/Apply buttons
+        ok_btn = QPushButton('OK', self)
+        cancel_btn = QPushButton('Cancel', self)
+        apply_btn = QPushButton('Apply', self)
+
+        # Putting together buttons
+        dialog_buttons_layout = QHBoxLayout()
+        dialog_buttons_layout.addWidget(ok_btn)
+        dialog_buttons_layout.addWidget(cancel_btn)
+        dialog_buttons_layout.addWidget(apply_btn)
+
+        # Building separator lines
+        hline = QFrame(self)
+        hline.setFrameShape(QFrame.HLine)
+        hline.setFrameShadow(QFrame.Sunken)
+
+        hline2 = QFrame(self)
+        hline2.setFrameShape(QFrame.HLine)
+        hline2.setFrameShadow(QFrame.Sunken)
+
         main_layout.addLayout(upper_layout)
-        main_layout.addWidget(image_table)
-        main_layout.setAlignment(Qt.AlignTop)
+        main_layout.addWidget(hline)
+        main_layout.addLayout(lower_layout)
+        main_layout.addWidget(hline2)
+        main_layout.addLayout(dialog_buttons_layout)
+
+        # Defining button functions down here because FML
+        edit_image.clicked.connect(functools.partial(self.edit_sel_image, image_table.selectedItems))
 
         self.setLayout(main_layout)
         self.setGeometry(300, 300, 250, 250)
         self.setWindowTitle('Options')
         self.show()
 
-    def changeitem(self):
-        # print([item.tableWidget().selectedItems()[0].text(), item.tableWidget().selectedItems()[1].text()])
-        print('!')
+    def edit_sel_image(self, selected_items=None):
+        if selected_items:
+            print(selected_items()[0].text())
+            print(selected_items()[1].text())
+        change_selection = ImageWindow(self, selected_items)
+
+
+class ImageWindow(QDialog):
+    def __init__(self, parent=None, items=None):
+        super().__init__(parent)
+        self.setGeometry(400, 400, 500, 100)
+
+        # Store relevant variables to pull up later
+        if items:
+            self.img_name = items()[0].text()
+            self.img_file = items()[1].text()
+            self.items = items
+
+        # Create name/filename text and QLineEdit fields
+        self.name_txt = QLabel('Name')
+        self.name_edit = QLineEdit()
+        self.name_edit.setText(self.img_name)
+
+        self.file_txt = QLabel('File')
+        self.file_edit = QLineEdit()
+        self.file_edit.setText(self.img_file)
+
+        # Arrange name/filename rows in a form layout
+        form = QFormLayout()
+        form.addRow(self.name_txt, self.name_edit)
+        form.addRow(self.file_txt, self.file_edit)
+
+        choose_file = QPushButton('Choose File')
+        choose_file.setMaximumWidth(100)
+        choose_file.clicked.connect(self.choose_new_image)
+
+        image_preview_label = QLabel()
+        image_preview_label.setText('Image Preview:')
+        image_preview_label.setAlignment(Qt.AlignCenter)
+        self.image_preview = QLabel()
+        self.image_preview.setAlignment(Qt.AlignCenter)
+        self.image_preview.setPixmap(QPixmap(self.img_file))
+
+        image_preview_layout = QVBoxLayout()
+        image_preview_layout.addWidget(image_preview_label)
+        image_preview_layout.addWidget(self.image_preview)
+        image_preview_box = QGroupBox()
+        image_preview_box.setLayout(image_preview_layout)
+
+        ok_btn = QPushButton('Fine')
+        ok_btn.setDefault(True)
+        ok_btn.clicked.connect(self.set_info)
+        cancel_btn = QPushButton('Dammit')
+        ok_cancel_row = QHBoxLayout()
+        ok_cancel_row.addWidget(ok_btn)
+        ok_cancel_row.addWidget(cancel_btn)
+
+        main_layout = QVBoxLayout()
+        main_layout.addLayout(form)
+        main_layout.addWidget(choose_file, alignment=Qt.AlignCenter)
+        main_layout.addWidget(image_preview_box)
+        main_layout.addLayout(ok_cancel_row)
+
+        self.setLayout(main_layout)
+        self.show()
+
+    # Opens a file dialogue, lets user choose an image. Puts relative path in filename box, updates image preview.
+    def choose_new_image(self):
+        dir = QDir()
+        filename, _ = QFileDialog.getOpenFileName(self, 'Choose Layout', ":/", "Image Files (*.png)")
+        if filename:
+            self.file_edit.setText(dir.relativeFilePath(filename))
+            self.image_preview.setPixmap(QPixmap(filename))
+
+    # Once user is happy with image and image name, this applies the changes to the table in parent ElementProps window.
+    def set_info(self):
+        self.items()[0].setText(self.name_edit.text())
+        self.items()[1].setText(self.file_edit.text())
+        self.close()
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
